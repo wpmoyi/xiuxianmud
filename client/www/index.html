@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>修仙文字游戏 · P1 回显测试</title>
+  <style>
+    /* 极简样式：一个输出区 + 一个输入框 */
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    h3 { margin: 12px 16px 4px; font-weight: normal; color: #9face6; }
+    #status { margin: 0 16px 8px; font-size: 13px; color: #8a8aa0; }
+    #output {
+      flex: 1;
+      overflow-y: auto;
+      margin: 0 16px;
+      padding: 10px 12px;
+      background: #12121f;
+      border: 1px solid #2c2c44;
+      border-radius: 8px;
+      font-size: 15px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+    }
+    #output .me { color: #7fd4ff; }
+    #output .server { color: #a5e8a5; }
+    .bar { display: flex; gap: 8px; margin: 12px 16px 16px; }
+    #input {
+      flex: 1;
+      padding: 10px 12px;
+      font-size: 15px;
+      background: #12121f;
+      color: #eee;
+      border: 1px solid #2c2c44;
+      border-radius: 8px;
+      outline: none;
+    }
+    #send {
+      padding: 10px 20px;
+      font-size: 15px;
+      background: #3b5bdb;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    #send:active { background: #2f4bb8; }
+  </style>
+</head>
+<body>
+  <h3>修仙文字游戏 · 服务器回显测试</h3>
+  <div id="status">连接中…</div>
+  <div id="output"></div>
+  <div class="bar">
+    <input id="input" placeholder="输入任意内容，回车发送" autofocus />
+    <button id="send">发送</button>
+  </div>
+
+  <script>
+    const output = document.getElementById('output');
+    const input = document.getElementById('input');
+    const sendBtn = document.getElementById('send');
+    const statusEl = document.getElementById('status');
+
+    // 服务器地址：自动取「当前页面所在主机」，端口固定 8765。
+    // 双击直接打开文件(file://)时 location.hostname 为空，回退到 localhost。
+    const host = location.hostname || 'localhost';
+    const url = `ws://${host}:8765`;
+
+    let ws;
+
+    function log(text, cls) {
+      const line = document.createElement('div');
+      if (cls) line.className = cls;
+      line.textContent = text;
+      output.appendChild(line);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function send() {
+      const text = input.value.trim();
+      if (!text) return;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        log('尚未连上服务器，无法发送。', 'server');
+        return;
+      }
+      // 按协议发送 JSON：{"type": "command", "text": "..."}
+      ws.send(JSON.stringify({ type: 'command', text: text }));
+      log('我：' + text, 'me');
+      input.value = '';
+      input.focus();
+    }
+
+    function connect() {
+      statusEl.textContent = '连接中 ' + url + ' …';
+      ws = new WebSocket(url);
+
+      ws.onopen = () => {
+        statusEl.textContent = '已连接 ' + url;
+        log('—— 已连上服务器，输入内容开始回显 ——', 'server');
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'text') log('服务器：' + msg.text, 'server');
+          else log('服务器：' + e.data, 'server');
+        } catch {
+          log('服务器：' + e.data, 'server');
+        }
+      };
+
+      ws.onclose = () => {
+        statusEl.textContent = '连接已断开';
+      };
+
+      ws.onerror = () => {
+        statusEl.textContent = '连接失败，请确认服务器已启动且地址正确。';
+      };
+    }
+
+    sendBtn.addEventListener('click', send);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') send();
+    });
+
+    connect();
+  </script>
+</body>
+</html>
